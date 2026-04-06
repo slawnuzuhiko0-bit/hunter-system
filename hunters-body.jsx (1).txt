@@ -1,0 +1,503 @@
+import { useState, useEffect } from "react";
+
+const RANKS = [
+  { rank: "E", title: "Aspirant des Ombres", emoji: "🌑", xpRequired: 0, color: "#6b7280" },
+  { rank: "E", title: "Pourfendeur des Limbes", emoji: "⚔️", xpRequired: 200, color: "#6b7280" },
+  { rank: "E", title: "Marcheur du Vide", emoji: "🩸", xpRequired: 400, color: "#6b7280" },
+  { rank: "D", title: "Chasseur Maudit", emoji: "💀", xpRequired: 700, color: "#3b82f6" },
+  { rank: "D", title: "Briseur de Chaînes", emoji: "🌊", xpRequired: 1000, color: "#3b82f6" },
+  { rank: "C", title: "Dévoreur d'Épreuves", emoji: "🔥", xpRequired: 1500, color: "#8b5cf6" },
+  { rank: "C", title: "Maître des Ombres", emoji: "⚡", xpRequired: 2000, color: "#8b5cf6" },
+  { rank: "B", title: "Seigneur du Néant", emoji: "🌪️", xpRequired: 3000, color: "#f59e0b" },
+  { rank: "A", title: "Dévastateur Suprême", emoji: "🌟", xpRequired: 5000, color: "#ef4444" },
+  { rank: "S", title: "Ombre Absolue", emoji: "👑", xpRequired: 8000, color: "#ec4899" },
+];
+
+const WEEKLY_QUESTS = [
+  { id: "push1", day: "Lundi", type: "Push", exercises: [{ name: "Pompes", sets: 5, reps: 15 }, { name: "Dips", sets: 4, reps: 10 }, { name: "Pike Push-up", sets: 3, reps: 12 }] },
+  { id: "pull1", day: "Mardi", type: "Pull", exercises: [{ name: "Tractions", sets: 4, reps: 8 }, { name: "Rowing", sets: 4, reps: 12 }, { name: "Curl", sets: 3, reps: 12 }] },
+  { id: "legs1", day: "Mercredi", type: "Legs (modéré)", exercises: [{ name: "Squats", sets: 4, reps: 15 }, { name: "Fentes", sets: 3, reps: 12 }, { name: "Mollets", sets: 3, reps: 20 }] },
+  { id: "cardio1", day: "Jeudi", type: "Footing", exercises: [{ name: "Footing", sets: 1, reps: 30 }] },
+  { id: "push2", day: "Vendredi", type: "Push", exercises: [{ name: "Pompes", sets: 5, reps: 20 }, { name: "Dips", sets: 4, reps: 12 }, { name: "Pike Push-up", sets: 3, reps: 15 }] },
+  { id: "cardio2legs", day: "Samedi", type: "Footing + Legs (intensif)", exercises: [{ name: "Footing", sets: 1, reps: 30 }, { name: "Squats", sets: 5, reps: 20 }, { name: "Hip Thrust", sets: 4, reps: 15 }] },
+  { id: "rest", day: "Dimanche", type: "Repos Total", exercises: [] },
+];
+
+const EVENTS = [
+  { id: "ev1", name: "Épreuve du Vide", cost: 5, costType: "normal", rarity: "common", xpReward: 150, available: "Illimité", emoji: "⚔️" },
+  { id: "ev2", name: "Boss Hebdomadaire", cost: 10, costType: "normal", rarity: "uncommon", xpReward: 300, available: "1x/semaine", emoji: "💀" },
+  { id: "ev3", name: "Boss Mensuel", cost: 25, costType: "normal", rarity: "rare", xpReward: 500, available: "1x/mois", emoji: "🌊" },
+  { id: "ev4", name: "Épreuve Obscure", cost: 100, costType: "normal", rarity: "epic", xpReward: 800, available: "1x/mois", emoji: "🔥" },
+  { id: "ev5", name: "Portail Maudit", cost: 200, costType: "normal", rarity: "epic", xpReward: 1200, available: "1x/mois", emoji: "🌑" },
+  { id: "ev6", name: "Raid des Ombres", cost: 300, costType: "normal", rarity: "legendary", xpReward: 2000, available: "1x/mois", emoji: "⚡" },
+  { id: "ev7", name: "Éveil du Chasseur", cost: 500, costType: "normal", rarity: "legendary", xpReward: 3000, available: "1x/mois", emoji: "🌟" },
+  { id: "ev8", name: "Jugement Suprême", cost: 800, costType: "normal", rarity: "mythic", xpReward: 5000, available: "1x/mois", emoji: "👑" },
+  { id: "ev9", name: "Porte de l'Abîme", cost: 1200, costType: "normal", rarity: "mythic", xpReward: 8000, available: "1x/mois", emoji: "🌪️" },
+];
+
+const rarityColors = {
+  common: "#6b7280",
+  uncommon: "#3b82f6",
+  rare: "#8b5cf6",
+  epic: "#f59e0b",
+  legendary: "#ef4444",
+  mythic: "#ec4899",
+};
+
+const rarityLabels = {
+  common: "Commun",
+  uncommon: "Peu commun",
+  rare: "Rare",
+  epic: "Épique",
+  legendary: "Légendaire",
+  mythic: "Mythique",
+};
+
+function calcXP(sets, reps) {
+  return sets + reps;
+}
+
+function getCurrentTitle(xp) {
+  let current = RANKS[0];
+  for (const r of RANKS) {
+    if (xp >= r.xpRequired) current = r;
+    else break;
+  }
+  return current;
+}
+
+function getNextTitle(xp) {
+  for (const r of RANKS) {
+    if (xp < r.xpRequired) return r;
+  }
+  return null;
+}
+
+function getWeekKey() {
+  const d = new Date();
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(new Date().setDate(diff));
+  return `week-${monday.getFullYear()}-${monday.getMonth()}-${monday.getDate()}`;
+}
+
+export default function HuntersBody() {
+  const [xp, setXp] = useState(0);
+  const [normalKeys, setNormalKeys] = useState(0);
+  const [goldenKeys, setGoldenKeys] = useState(0);
+  const [completedSessions, setCompletedSessions] = useState({});
+  const [partialSessions, setPartialSessions] = useState({});
+  const [activeTab, setActiveTab] = useState("quests");
+  const [notification, setNotification] = useState(null);
+  const [loaded, setLoaded] = useState(false);
+
+  // Load data from storage on mount
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const global = await window.storage.get("hunters-global");
+        if (global) {
+          const data = JSON.parse(global.value);
+          setXp(data.xp || 0);
+          setNormalKeys(data.normalKeys || 0);
+          setGoldenKeys(data.goldenKeys || 0);
+        }
+      } catch (e) {}
+      try {
+        const weekly = await window.storage.get(`hunters-${getWeekKey()}`);
+        if (weekly) {
+          const data = JSON.parse(weekly.value);
+          setCompletedSessions(data.completedSessions || {});
+          setPartialSessions(data.partialSessions || {});
+        }
+      } catch (e) {}
+      setLoaded(true);
+    }
+    loadData();
+  }, []);
+
+  // Save global data whenever xp/keys change
+  useEffect(() => {
+    if (!loaded) return;
+    async function saveGlobal() {
+      try {
+        await window.storage.set("hunters-global", JSON.stringify({ xp, normalKeys, goldenKeys }));
+      } catch (e) {}
+    }
+    saveGlobal();
+  }, [xp, normalKeys, goldenKeys, loaded]);
+
+  // Save weekly data whenever sessions change
+  useEffect(() => {
+    if (!loaded) return;
+    async function saveWeekly() {
+      try {
+        await window.storage.set(`hunters-${getWeekKey()}`, JSON.stringify({ completedSessions, partialSessions }));
+      } catch (e) {}
+    }
+    saveWeekly();
+  }, [completedSessions, partialSessions, loaded]);
+
+  const totalKeys = normalKeys + goldenKeys * 2;
+  const currentTitle = getCurrentTitle(xp);
+  const nextTitle = getNextTitle(xp);
+  const progressPercent = nextTitle
+    ? Math.round(((xp - currentTitle.xpRequired) / (nextTitle.xpRequired - currentTitle.xpRequired)) * 100)
+    : 100;
+
+  const completedCount = Object.keys(completedSessions).filter(k => completedSessions[k]).length;
+  const sportDays = WEEKLY_QUESTS.filter(q => q.type !== "Repos Total").length;
+
+  function showNotif(msg, color = "#8b5cf6") {
+    setNotification({ msg, color });
+    setTimeout(() => setNotification(null), 2500);
+  }
+
+  function completeSession(questId, exercises) {
+    if (completedSessions[questId]) return;
+    const sessionXP = exercises.reduce((acc, ex) => acc + calcXP(ex.sets, ex.reps), 0);
+    setXp(prev => prev + sessionXP);
+    setNormalKeys(prev => prev + 3);
+    setCompletedSessions(prev => ({ ...prev, [questId]: true }));
+    setPartialSessions(prev => ({ ...prev, [questId]: false }));
+    showNotif(`+${sessionXP} XP • +3 🗝️ Séance complète !`, "#8b5cf6");
+
+    // Check week bonus
+    const newCount = completedCount + 1;
+    if (newCount === sportDays) {
+      setTimeout(() => {
+        setGoldenKeys(prev => prev + 10);
+        showNotif("🏆 Semaine parfaite ! +10 🗝️✨ Clés Dorées !", "#f59e0b");
+      }, 1000);
+    } else if (newCount === 5) {
+      setTimeout(() => {
+        setNormalKeys(prev => prev + 5);
+        showNotif("⭐ 5 séances ! +5 🗝️ Bonus !", "#3b82f6");
+      }, 1000);
+    }
+  }
+
+  function partialSession(questId) {
+    if (completedSessions[questId] || partialSessions[questId]) return;
+    setNormalKeys(prev => prev + 1);
+    setPartialSessions(prev => ({ ...prev, [questId]: true }));
+    showNotif("+1 🗝️ Séance partielle", "#6b7280");
+  }
+
+  function useEvent(event) {
+    if (totalKeys < event.cost) {
+      showNotif("Pas assez de clés !", "#ef4444");
+      return;
+    }
+    // Deduct keys (golden first)
+    let remaining = event.cost;
+    let newGolden = goldenKeys;
+    let newNormal = normalKeys;
+    const goldenToUse = Math.min(Math.floor(remaining / 2), newGolden);
+    remaining -= goldenToUse * 2;
+    newGolden -= goldenToUse;
+    newNormal -= remaining;
+    setGoldenKeys(newGolden);
+    setNormalKeys(newNormal);
+    setXp(prev => prev + event.xpReward);
+    showNotif(`${event.emoji} ${event.name} lancé ! +${event.xpReward} XP`, rarityColors[event.rarity]);
+  }
+
+  if (!loaded) return (
+    <div style={{ minHeight: "100vh", background: "#0a0a0f", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Cinzel', serif", color: "#8b5cf6" }}>
+      <div style={{ fontSize: 32, marginBottom: 16 }}>⚔️</div>
+      <div style={{ fontSize: 12, letterSpacing: 4 }}>CHARGEMENT...</div>
+    </div>
+  );
+
+  return (
+    <div style={{
+      minHeight: "100vh",
+      background: "linear-gradient(135deg, #0a0a0f 0%, #0f0a1a 50%, #0a0f1a 100%)",
+      fontFamily: "'Cinzel', 'Georgia', serif",
+      color: "#e2e8f0",
+      position: "relative",
+      overflow: "hidden",
+    }}>
+      {/* Background particles */}
+      <div style={{ position: "fixed", inset: 0, pointerEvents: "none", overflow: "hidden", zIndex: 0 }}>
+        {[...Array(20)].map((_, i) => (
+          <div key={i} style={{
+            position: "absolute",
+            width: Math.random() * 3 + 1 + "px",
+            height: Math.random() * 3 + 1 + "px",
+            background: i % 3 === 0 ? "#8b5cf6" : i % 3 === 1 ? "#3b82f6" : "#ec4899",
+            borderRadius: "50%",
+            left: Math.random() * 100 + "%",
+            top: Math.random() * 100 + "%",
+            opacity: Math.random() * 0.5 + 0.1,
+            animation: `float ${Math.random() * 10 + 5}s infinite ease-in-out`,
+            animationDelay: Math.random() * 5 + "s",
+          }} />
+        ))}
+      </div>
+
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap');
+        @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-20px)} }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+        @keyframes slideIn { from{transform:translateX(100%);opacity:0} to{transform:translateX(0);opacity:1} }
+        @keyframes glow { 0%,100%{box-shadow:0 0 10px #8b5cf640} 50%{box-shadow:0 0 30px #8b5cf6aa} }
+        .tab-btn { background: transparent; border: 1px solid #ffffff20; color: #94a3b8; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-family: 'Rajdhani', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 1px; text-transform: uppercase; transition: all 0.2s; }
+        .tab-btn.active { background: #8b5cf620; border-color: #8b5cf6; color: #c4b5fd; }
+        .tab-btn:hover { border-color: #8b5cf660; color: #c4b5fd; }
+        .quest-card { background: #ffffff08; border: 1px solid #ffffff15; border-radius: 12px; padding: 16px; margin-bottom: 12px; transition: all 0.2s; }
+        .quest-card:hover { border-color: #8b5cf640; background: #ffffff10; }
+        .btn-complete { background: linear-gradient(135deg, #7c3aed, #4f46e5); border: none; color: white; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 1px; transition: all 0.2s; }
+        .btn-complete:hover { transform: translateY(-1px); box-shadow: 0 4px 15px #7c3aed60; }
+        .btn-partial { background: transparent; border: 1px solid #6b728060; color: #9ca3af; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-family: 'Rajdhani', sans-serif; font-weight: 600; font-size: 12px; letter-spacing: 1px; transition: all 0.2s; }
+        .btn-partial:hover { border-color: #6b7280; color: #d1d5db; }
+        .event-card { background: #ffffff06; border-radius: 10px; padding: 14px; margin-bottom: 10px; transition: all 0.2s; cursor: pointer; }
+        .event-card:hover { background: #ffffff10; transform: translateY(-1px); }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+      `}</style>
+
+      {/* Notification */}
+      {notification && (
+        <div style={{
+          position: "fixed", top: 20, right: 20, zIndex: 1000,
+          background: "#0f0a1a", border: `1px solid ${notification.color}`,
+          borderRadius: 10, padding: "12px 18px",
+          animation: "slideIn 0.3s ease",
+          boxShadow: `0 0 20px ${notification.color}40`,
+          fontFamily: "'Rajdhani', sans-serif", fontWeight: 700,
+          fontSize: 14, color: notification.color, letterSpacing: 1,
+        }}>
+          {notification.msg}
+        </div>
+      )}
+
+      <div style={{ maxWidth: 480, margin: "0 auto", padding: "20px 16px", position: "relative", zIndex: 1 }}>
+
+        {/* Header */}
+        <div style={{ textAlign: "center", marginBottom: 24 }}>
+          <div style={{ fontSize: 11, letterSpacing: 4, color: "#8b5cf6", fontFamily: "'Rajdhani', sans-serif", fontWeight: 600, marginBottom: 4 }}>SYSTÈME DE CHASSE</div>
+          <h1 style={{ fontSize: 28, fontWeight: 900, margin: 0, background: "linear-gradient(135deg, #c4b5fd, #818cf8, #ec4899)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: 2 }}>HUNTER'S BODY</h1>
+        </div>
+
+        {/* Status Card */}
+        <div style={{
+          background: "linear-gradient(135deg, #1a0a2e, #0a1628)",
+          border: "1px solid #8b5cf640",
+          borderRadius: 16, padding: 20, marginBottom: 20,
+          animation: "glow 3s infinite",
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+            <div>
+              <div style={{ fontSize: 11, letterSpacing: 3, color: "#6b7280", fontFamily: "'Rajdhani', sans-serif", fontWeight: 600 }}>RANG {currentTitle.rank}</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: currentTitle.color, marginTop: 2 }}>
+                {currentTitle.emoji} {currentTitle.title}
+              </div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 11, letterSpacing: 2, color: "#6b7280", fontFamily: "'Rajdhani', sans-serif", fontWeight: 600 }}>POINTS</div>
+              <div style={{ fontSize: 24, fontWeight: 900, color: "#c4b5fd" }}>{xp.toLocaleString()}</div>
+            </div>
+          </div>
+
+          {nextTitle && (
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                <span style={{ fontSize: 11, color: "#6b7280", fontFamily: "'Rajdhani', sans-serif", letterSpacing: 1 }}>PROCHAIN : {nextTitle.emoji} {nextTitle.title}</span>
+                <span style={{ fontSize: 11, color: "#8b5cf6", fontFamily: "'Rajdhani', sans-serif", fontWeight: 700 }}>{progressPercent}%</span>
+              </div>
+              <div style={{ background: "#ffffff10", borderRadius: 4, height: 6, overflow: "hidden" }}>
+                <div style={{ width: progressPercent + "%", height: "100%", background: "linear-gradient(90deg, #7c3aed, #ec4899)", borderRadius: 4, transition: "width 0.5s ease" }} />
+              </div>
+              <div style={{ fontSize: 10, color: "#4b5563", fontFamily: "'Rajdhani', sans-serif", marginTop: 4, textAlign: "right" }}>
+                {nextTitle.xpRequired - xp} XP restants
+              </div>
+            </div>
+          )}
+
+          {/* Keys */}
+          <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
+            <div style={{ flex: 1, background: "#ffffff08", borderRadius: 8, padding: "10px 12px", border: "1px solid #ffffff15" }}>
+              <div style={{ fontSize: 10, letterSpacing: 2, color: "#6b7280", fontFamily: "'Rajdhani', sans-serif", fontWeight: 600 }}>CLÉS NORMALES</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: "#e2e8f0" }}>🗝️ {normalKeys}</div>
+            </div>
+            <div style={{ flex: 1, background: "#ffffff08", borderRadius: 8, padding: "10px 12px", border: "1px solid #f59e0b40" }}>
+              <div style={{ fontSize: 10, letterSpacing: 2, color: "#6b7280", fontFamily: "'Rajdhani', sans-serif", fontWeight: 600 }}>CLÉS DORÉES</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: "#f59e0b" }}>✨ {goldenKeys}</div>
+            </div>
+            <div style={{ flex: 1, background: "#ffffff08", borderRadius: 8, padding: "10px 12px", border: "1px solid #8b5cf640" }}>
+              <div style={{ fontSize: 10, letterSpacing: 2, color: "#6b7280", fontFamily: "'Rajdhani', sans-serif", fontWeight: 600 }}>TOTAL CLÉS</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: "#c4b5fd" }}>{totalKeys}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Week Progress */}
+        <div style={{ background: "#ffffff08", border: "1px solid #ffffff15", borderRadius: 12, padding: "12px 16px", marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: 10, letterSpacing: 2, color: "#6b7280", fontFamily: "'Rajdhani', sans-serif", fontWeight: 600 }}>PROGRESSION HEBDO</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "#e2e8f0", marginTop: 2 }}>{completedCount} / {sportDays} séances</div>
+          </div>
+          <div style={{ display: "flex", gap: 4 }}>
+            {WEEKLY_QUESTS.filter(q => q.type !== "Repos Total").map(q => (
+              <div key={q.id} style={{
+                width: 10, height: 10, borderRadius: "50%",
+                background: completedSessions[q.id] ? "#8b5cf6" : partialSessions[q.id] ? "#6b7280" : "#ffffff15",
+                border: completedSessions[q.id] ? "1px solid #c4b5fd" : "1px solid #ffffff20",
+              }} />
+            ))}
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 20, overflowX: "auto" }} className="scrollbar-hide">
+          {["quests", "events", "ranks"].map(tab => (
+            <button key={tab} className={`tab-btn ${activeTab === tab ? "active" : ""}`} onClick={() => setActiveTab(tab)}>
+              {tab === "quests" ? "⚔️ Quêtes" : tab === "events" ? "🌑 Événements" : "👑 Rangs"}
+            </button>
+          ))}
+        </div>
+
+        {/* QUESTS TAB */}
+        {activeTab === "quests" && (
+          <div>
+            {WEEKLY_QUESTS.map(quest => {
+              const isCompleted = completedSessions[quest.id];
+              const isPartial = partialSessions[quest.id];
+              const isRest = quest.type === "Repos Total";
+              const totalQuestXP = quest.exercises.reduce((acc, ex) => acc + calcXP(ex.sets, ex.reps), 0);
+
+              return (
+                <div key={quest.id} className="quest-card" style={{
+                  opacity: isRest ? 0.5 : 1,
+                  borderColor: isCompleted ? "#8b5cf640" : isPartial ? "#6b728040" : "#ffffff15",
+                  background: isCompleted ? "#8b5cf610" : "#ffffff08",
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: isRest ? 0 : 12 }}>
+                    <div>
+                      <div style={{ fontSize: 10, letterSpacing: 2, color: "#6b7280", fontFamily: "'Rajdhani', sans-serif", fontWeight: 600 }}>{quest.day}</div>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: isCompleted ? "#c4b5fd" : "#e2e8f0" }}>{quest.type}</div>
+                    </div>
+                    {!isRest && (
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: 10, color: "#6b7280", fontFamily: "'Rajdhani', sans-serif" }}>RÉCOMPENSE</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "#8b5cf6" }}>+{totalQuestXP} XP • +3 🗝️</div>
+                      </div>
+                    )}
+                    {isRest && <div style={{ fontSize: 20 }}>😴</div>}
+                  </div>
+
+                  {!isRest && (
+                    <>
+                      <div style={{ marginBottom: 12 }}>
+                        {quest.exercises.map((ex, i) => (
+                          <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: i < quest.exercises.length - 1 ? "1px solid #ffffff08" : "none" }}>
+                            <span style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 13, color: "#94a3b8" }}>{ex.name}</span>
+                            <span style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 13, color: "#6b7280" }}>{ex.sets}x{ex.reps} = <span style={{ color: "#8b5cf6" }}>+{calcXP(ex.sets, ex.reps)} XP</span></span>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        {isCompleted ? (
+                          <div style={{ flex: 1, textAlign: "center", padding: "8px", background: "#8b5cf620", borderRadius: 6, color: "#c4b5fd", fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 12, letterSpacing: 1 }}>
+                            ✅ COMPLÉTÉ
+                          </div>
+                        ) : isPartial ? (
+                          <div style={{ flex: 1, textAlign: "center", padding: "8px", background: "#ffffff08", borderRadius: 6, color: "#6b7280", fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 12, letterSpacing: 1 }}>
+                            ◐ PARTIEL (+1 🗝️)
+                          </div>
+                        ) : (
+                          <>
+                            <button className="btn-complete" style={{ flex: 2 }} onClick={() => completeSession(quest.id, quest.exercises)}>
+                              ✓ SÉANCE COMPLÈTE
+                            </button>
+                            <button className="btn-partial" onClick={() => partialSession(quest.id)}>
+                              ◐ PARTIEL
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* EVENTS TAB */}
+        {activeTab === "events" && (
+          <div>
+            <div style={{ fontSize: 11, color: "#6b7280", fontFamily: "'Rajdhani', sans-serif", letterSpacing: 2, marginBottom: 16 }}>
+              CLÉS DISPONIBLES : {totalKeys} ({normalKeys} normales + {goldenKeys} dorées)
+            </div>
+            {EVENTS.map(event => {
+              const canAfford = totalKeys >= event.cost;
+              return (
+                <div key={event.id} className="event-card" style={{
+                  border: `1px solid ${rarityColors[event.rarity]}40`,
+                  opacity: canAfford ? 1 : 0.5,
+                }} onClick={() => canAfford && useEvent(event)}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ fontSize: 24 }}>{event.emoji}</div>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: rarityColors[event.rarity] }}>{event.name}</div>
+                        <div style={{ fontSize: 10, color: "#6b7280", fontFamily: "'Rajdhani', sans-serif", letterSpacing: 1 }}>
+                          {rarityLabels[event.rarity].toUpperCase()} • {event.available}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0" }}>🗝️ {event.cost}</div>
+                      <div style={{ fontSize: 11, color: "#8b5cf6", fontFamily: "'Rajdhani', sans-serif" }}>+{event.xpReward} XP</div>
+                    </div>
+                  </div>
+                  {canAfford && (
+                    <div style={{ marginTop: 10, textAlign: "center", fontSize: 10, letterSpacing: 2, color: rarityColors[event.rarity], fontFamily: "'Rajdhani', sans-serif", fontWeight: 700 }}>
+                      APPUYER POUR LANCER
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* RANKS TAB */}
+        {activeTab === "ranks" && (
+          <div>
+            {RANKS.map((rank, i) => {
+              const isUnlocked = xp >= rank.xpRequired;
+              const isCurrent = getCurrentTitle(xp).title === rank.title;
+              return (
+                <div key={i} style={{
+                  background: isCurrent ? `${rank.color}15` : "#ffffff06",
+                  border: `1px solid ${isCurrent ? rank.color : "#ffffff15"}`,
+                  borderRadius: 10, padding: "12px 16px", marginBottom: 8,
+                  opacity: isUnlocked ? 1 : 0.4,
+                  transition: "all 0.2s",
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ fontSize: 20 }}>{isUnlocked ? rank.emoji : "🔒"}</div>
+                      <div>
+                        <div style={{ fontSize: 10, letterSpacing: 2, color: rank.color, fontFamily: "'Rajdhani', sans-serif", fontWeight: 700 }}>RANG {rank.rank}</div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: isUnlocked ? "#e2e8f0" : "#6b7280" }}>{rank.title}</div>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: rank.color }}>{rank.xpRequired.toLocaleString()} XP</div>
+                      {isCurrent && <div style={{ fontSize: 10, color: rank.color, fontFamily: "'Rajdhani', sans-serif", letterSpacing: 1 }}>ACTUEL</div>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
